@@ -1,9 +1,16 @@
 class Puissance4:
-    def __init__(self):
+    def __init__(self, grid=None, player=None):
         self.lignes = 6
         self.colonnes = 7
         self.grille = [[0 for _ in range(self.colonnes)] for _ in range(self.lignes)]
         self.joueur_actuel = 1  # 1 pour le joueur 1, 2 pour le joueur 2
+
+        if not grid is None:
+            self.grille = grid
+
+        if not player is None:
+            self.joueur_actuel = player
+
 
     def afficher_grille(self):
         for ligne in self.grille:
@@ -77,7 +84,68 @@ class Puissance4:
                 break
 
             self.changer_joueur()
+    
+    def getGrid(self):
+        return self.grille
+    
+    def getPlayer(self):
+        return self.joueur_actuel
+    
+
 
 # Pour jouer :
-jeu = Puissance4()
-jeu.jouer()
+# jeu = Puissance4()
+# jeu.jouer()
+
+
+def MinimaxExplorer(game: Puissance4, Ordi = 2):
+
+    loopPlayer=game.getPlayer()
+
+    res = 0
+
+    for i in range(7):
+        InstanceGame = Puissance4(game.getGrid(), game.getPlayer())
+        if InstanceGame.jouer_coup(i):
+            if game.est_gagnant(loopPlayer):
+                if loopPlayer == Ordi:
+                    res += 1
+                    continue
+                else:
+                    res -= 1
+                    continue
+            elif game.est_plein():
+                continue
+            else:
+                res += MinimaxExplorer(InstanceGame)
+    
+    return res;
+
+
+
+
+
+def Minimax(game: Puissance4):
+    currentPlayer = game.getPlayer()
+    grid = game.getGrid()
+
+    print(currentPlayer)
+    game.afficher_grille()
+
+    game.jouer_coup(3)
+    game.changer_joueur()
+    game.afficher_grille()
+
+    results = [0 for i in range (7)]
+
+    for i in range(7):
+        possibleMove = Puissance4(grid, currentPlayer)
+        if possibleMove.jouer_coup(i):
+            results[i] = MinimaxExplorer(possibleMove)
+        else:
+            results[i] = None
+
+
+    print(results)
+    
+Minimax(Puissance4())
