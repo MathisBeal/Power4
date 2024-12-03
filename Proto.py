@@ -10,15 +10,15 @@ class Puissance4:
         self.lignes = 6
         self.colonnes = 7
         self.grille = [[0 for _ in range(self.colonnes)] for _ in range(self.lignes)]
-        self.joueur_humain = 1
-        self.joueur_ordi = 2
-        self.joueur_actuel = self.joueur_humain  # Le joueur humain commence
+        self.joueur_humain = 1  # Devient l'IA RL
+        self.joueur_ordi = 2    # Minimax
+        self.joueur_actuel = self.joueur_humain  # IA RL commence
         self.largeur = 700
         self.hauteur = 600
         self.rayon = int(self.largeur / self.colonnes / 2 - 5)
-        self.scores_humain = []  
-        self.scores_ordi = []  
-        self.coup_count = [] 
+        self.scores_humain = []
+        self.scores_ordi = []
+        self.coup_count = []
 
         # Initialiser Pygame
         pygame.init()
@@ -32,28 +32,47 @@ class Puissance4:
         if not player is None:
             self.joueur_actuel = player
 
+    def tour_ia_rl(self, ia_rl_action):
+        coups_valides = self.obtenir_coups_valides()
+
+        if ia_rl_action in coups_valides:
+            if self.jouer_coup(ia_rl_action, self.joueur_humain):
+                print(f"L'IA RL joue dans la colonne {ia_rl_action}.")
+                return True
+            else:
+                print(f"Coup invalide de l'IA RL : {ia_rl_action}.")
+                return False
+        else:
+            ia_rl_action = random.choice(coups_valides)
+            if self.jouer_coup(ia_rl_action, self.joueur_humain):
+                print(f"L'IA RL joue dans la colonne {ia_rl_action} (choisi aléatoirement).")
+                return True
+            else:
+                print(f"Coup invalide de l'IA RL : {ia_rl_action}.")
+                return False
+
+
+    def obtenir_etat_grille(self):
+        return [row[:] for row in self.grille]
 
     def mise_a_jour_scores(self):
         score_humain = self.evaluer_position(self.joueur_humain)
         score_ordi = self.evaluer_position(self.joueur_ordi)
-        
+
         self.scores_humain.append(score_humain)
         self.scores_ordi.append(score_ordi)
-        self.coup_count.append(len(self.scores_humain) + len(self.scores_ordi)) 
-
+        self.coup_count.append(len(self.scores_humain) + len(self.scores_ordi))
 
     def afficher_grille(self):
-        # Dessiner la grille en bleu
         self.fenetre.fill((0, 0, 255))  # Fond bleu pour la grille
         for ligne in range(self.lignes):
             for col in range(self.colonnes):
-                # Dessiner les cercles noirs pour les trous vides et les pions rouge/jaune
                 pygame.draw.circle(self.fenetre, self.couleurs[self.grille[ligne][col]],
                                    (col * self.largeur // self.colonnes + self.largeur // (2 * self.colonnes),
                                     (ligne + 1) * self.hauteur // self.lignes - 40),
                                    self.rayon)
         pygame.display.update()
-        self.mise_a_jour_scores() 
+        self.mise_a_jour_scores()
 
     def jouer_coup(self, colonne, joueur):
         if colonne < 0 or colonne >= self.colonnes or self.grille[0][colonne] != 0:
@@ -108,7 +127,7 @@ class Puissance4:
         elif groupe.count(joueur) == 2 and groupe.count(0) == 2:
             score += 1
         if groupe.count(adversaire) == 3 and groupe.count(0) == 1:
-            score -= 80  # Réduire les chances de l'adversaire
+            score -= 80
         return score
 
     def evaluer_position(self, joueur):
@@ -165,14 +184,14 @@ class Puissance4:
             return meilleure_colonne, valeur_min
 
     def tour_ordinateur(self):
-        colonne, _ = self.minimax(4, -math.inf, math.inf, True)  # Profondeur 4 pour l'exploration
+        colonne, _ = self.minimax(2, -math.inf, math.inf, True)
         self.jouer_coup(colonne, self.joueur_ordi)
         print(f"L'ordinateur joue dans la colonne {colonne}.")
 
     def afficher_graphique(self):
         pygame.quit()
-        plt.plot(self.coup_count, self.scores_humain, label='Joueur Humain', color='red')
-        plt.plot(self.coup_count, self.scores_ordi, label='Ordinateur', color='yellow')
+        plt.plot(self.coup_count, self.scores_humain, label='IA RL', color='red')
+        plt.plot(self.coup_count, self.scores_ordi, label='Minimax', color='yellow')
         plt.title("Évolution des scores")
         plt.xlabel("Nombre de coups")
         plt.ylabel("Score")
@@ -180,45 +199,33 @@ class Puissance4:
         plt.grid()
         plt.show()
 
-    def jouer(self):
+    def jouer_automatique(self, ia_rl_action):
         while True:
             self.afficher_grille()
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    pygame.quit()
-                    sys.exit()
-                if event.type == pygame.MOUSEBUTTONDOWN and self.joueur_actuel == self.joueur_humain:
-                    pos_x = event.pos[0]
-                    colonne = pos_x // (self.largeur // self.colonnes)
-
-                    if self.jouer_coup(colonne, self.joueur_humain):
-                        if self.est_gagnant(self.joueur_humain):
-                            self.afficher_grille()
-                            print(f"Félicitations! Le joueur {self.joueur_humain} a gagné!")
-                            pygame.time.wait(2000)
-                            self.afficher_graphique()
-                            sys.exit()
-
-                        pygame.time.wait(200)
-                        self.joueur_actuel = self.joueur_ordi
 
             if self.joueur_actuel == self.joueur_ordi:
                 self.tour_ordinateur()
                 if self.est_gagnant(self.joueur_ordi):
                     self.afficher_grille()
-                    print("L'ordinateur a gagné!")
+                    print("Minimax gagne!")
                     pygame.time.wait(2000)
-                    self.afficher_graphique()
-                    sys.exit()
+                    return "Minimax"
                 self.joueur_actuel = self.joueur_humain
+
+            elif self.joueur_actuel == self.joueur_humain:
+                valid = self.tour_ia_rl(ia_rl_action)
+                if not valid:
+                    print(f"Action invalide de l'IA RL: {ia_rl_action}.")
+                    return "Invalid"
+                if self.est_gagnant(self.joueur_humain):
+                    self.afficher_grille()
+                    print("IA RL gagne!")
+                    pygame.time.wait(2000)
+                    return "RL"
+                self.joueur_actuel = self.joueur_ordi
 
             if self.est_plein():
                 self.afficher_grille()
-                print("Match nul! La grille est pleine.")
-                self.afficher_graphique()
+                print("Match nul!")
                 pygame.time.wait(2000)
-                sys.exit()
-
-# Pour jouer :
-jeu = Puissance4()
-jeu.jouer()
+                return "Draw"
