@@ -229,3 +229,20 @@ class Puissance4:
                 print("Match nul!")
                 pygame.time.wait(2000)
                 return "Draw"
+            
+    def simuler_coup(self, colonne, joueur):
+        """Joue temporairement un coup dans la colonne pour simuler le résultat."""
+        for ligne in reversed(range(self.lignes)):
+            if self.grille[ligne][colonne] == 0:
+                self.grille[ligne][colonne] = joueur
+                break
+
+    def annuler_coup(self, colonne):
+        """Annule le dernier coup joué dans une colonne."""
+        for ligne in range(self.lignes):
+            if self.grille[ligne][colonne] != 0:
+                self.grille[ligne][colonne] = 0
+                break
+            
+
+

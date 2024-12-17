@@ -22,6 +22,8 @@ def preprocess_grid(grid):
     # Convertit la grille en un format 1D pour le réseau
     return np.array(grid).flatten()
 
+    
+
 def detecter_menace(jeu, joueur_adverse):
     """
     Détecte si l'adversaire peut compléter une ligne, une colonne, ou une diagonale de 4 avec un prochain coup.
@@ -36,6 +38,15 @@ def detecter_menace(jeu, joueur_adverse):
             if groupe.count(joueur_adverse) == 3 and groupe.count(0) == 1:
                 # L'adversaire peut gagner dans cette ligne, donc on doit bloquer ici
                 for i in range(4):
+                    if groupe[i] == 0:
+                        menaces.append(col + i)
+
+    # Vérification des lignes de 2 adverses
+    for ligne in range(jeu.lignes):
+        for col in range(jeu.colonnes - 2):
+            groupe = [jeu.grille[ligne][col + i] for i in range(3)]
+            if groupe.count(joueur_adverse) == 2 and groupe.count(0) == 1:
+                for i in range(3):
                     if groupe[i] == 0:
                         menaces.append(col + i)
 
@@ -70,53 +81,31 @@ def detecter_menace(jeu, joueur_adverse):
 
     return list(set(menaces))  # Supprimer les doublons
 
-def detecter_menace(jeu, joueur_adverse):
+
+def detecter_menaces_potentielles(jeu, joueur_adverse):
     """
-    Détecte si l'adversaire peut compléter une ligne, une colonne, ou une diagonale de 4 avec un prochain coup.
-    Retourne une liste de coups qui bloquent ces menaces.
+    Détecte si l'adversaire pourrait créer une ligne gagnante dans deux coups.
+    Retourne une liste de colonnes où l'IA devrait jouer pour bloquer ces menaces.
     """
-    menaces = []
+    menaces_potentielles = []
 
-    # Vérification des lignes
-    for ligne in range(jeu.lignes):
-        for col in range(jeu.colonnes - 3):
-            groupe = [jeu.grille[ligne][col + i] for i in range(4)]
-            if groupe.count(joueur_adverse) == 3 and groupe.count(0) == 1:
-                # L'adversaire peut gagner dans cette ligne, donc on doit bloquer ici
-                for i in range(4):
-                    if groupe[i] == 0:
-                        menaces.append(col + i)
+    # Obtenir toutes les colonnes valides
+    colonnes_valides = jeu.obtenir_coups_valides()
 
-    # Vérification des colonnes
-    for col in range(jeu.colonnes):
-        for ligne in range(jeu.lignes - 3):
-            groupe = [jeu.grille[ligne + i][col] for i in range(4)]
-            if groupe.count(joueur_adverse) == 3 and groupe.count(0) == 1:
-                # L'adversaire peut gagner dans cette colonne, donc on doit bloquer ici
-                for i in range(4):
-                    if groupe[i] == 0:
-                        menaces.append(col)
+    for col in colonnes_valides:  # Parcours des colonnes valides uniquement
+        # Simule un coup pour l'adversaire
+        jeu.simuler_coup(col, joueur_adverse)  # L'adversaire joue dans cette colonne
+        menaces = detecter_menace(jeu, joueur_adverse)  # Vérifie les menaces immédiates après ce coup
 
-    # Vérification des diagonales montantes et descendantes
-    for ligne in range(jeu.lignes - 3):
-        for col in range(jeu.colonnes - 3):
-            # Diagonale descendante
-            groupe = [jeu.grille[ligne + i][col + i] for i in range(4)]
-            if groupe.count(joueur_adverse) == 3 and groupe.count(0) == 1:
-                # L'adversaire peut gagner dans cette diagonale descendante, donc on doit bloquer ici
-                for i in range(4):
-                    if groupe[i] == 0:
-                        menaces.append(col + i)
+        if menaces:
+            menaces_potentielles.append(col)  # Cette colonne mène à une menace potentielle
 
-            # Diagonale montante
-            groupe = [jeu.grille[ligne + 3 - i][col + i] for i in range(4)]
-            if groupe.count(joueur_adverse) == 3 and groupe.count(0) == 1:
-                # L'adversaire peut gagner dans cette diagonale montante, donc on doit bloquer ici
-                for i in range(4):
-                    if groupe[i] == 0:
-                        menaces.append(col + i)
+        jeu.annuler_coup(col)  # Annule le coup simulé
 
-    return list(set(menaces))  # Supprimer les doublons
+    return list(set(menaces_potentielles))  # Supprime les doublons
+
+
+
 
 def calculate_reward(jeu, joueur_rl, joueur_minimax, action, action_history):
     """
@@ -129,7 +118,21 @@ def calculate_reward(jeu, joueur_rl, joueur_minimax, action, action_history):
 
     # Si l'adversaire menace de gagner, bloquer cette menace
     if action in menaces:
-        reward += 2.0  # Bloquer une menace
+        reward += 3.0  # Bloquer une menace
+
+    # Récompenser la prévention de menaces plus faibles (lignes de 2 adverses)
+    for ligne in range(jeu.lignes):
+        for col in range(jeu.colonnes - 2):  # Ajustement pour une ligne de 2
+            groupe = [jeu.grille[ligne][col + i] for i in range(3)]
+            if groupe.count(joueur_minimax) == 2 and groupe.count(0) == 1:
+                reward += 1.0  # Récompenser le blocage d'une ligne de 2
+
+    # Récompenser l'attaque (lignes de 3 pions RL avec 1 case vide)
+    for ligne in range(jeu.lignes):
+        for col in range(jeu.colonnes - 3):
+            groupe = [jeu.grille[ligne][col + i] for i in range(4)]
+            if groupe.count(joueur_rl) == 3 and groupe.count(0) == 1:
+                reward += 2.0  # Construire une ligne gagnante est toujours utile
 
     # Récompenser la contribution à une ligne de 4 pour l'IA RL
     for ligne in range(jeu.lignes):
@@ -140,9 +143,9 @@ def calculate_reward(jeu, joueur_rl, joueur_minimax, action, action_history):
 
     # Vérifier les résultats finaux
     if jeu.est_gagnant(joueur_rl):
-        reward += 2.0  # Victoire de l'IA RL
+        reward += 5.0  # Victoire de l'IA RL
     elif jeu.est_gagnant(joueur_minimax):
-        reward -= 2.0  # Défaite contre Minimax
+        reward -= 5.0  # Défaite contre Minimax
     elif jeu.est_plein():
         reward += 0.0  # Match nul
 
@@ -155,6 +158,19 @@ def train_rl_vs_minimax(episodes=500, alpha=0.1, gamma=0.99, epsilon_start=1.0, 
     input_size = 6 * 7
     output_size = 7
     q_network = QNetwork(input_size, output_size)
+
+        # Charger un modèle pré-entraîné si disponible
+    load = input("Charger un modèle pré-entraîné ? (Y/n): ").strip().upper()
+    if load == "Y":
+        filename = input("Nom du fichier du modèle sauvegardé : ").strip()
+        try:
+            q_network.load_state_dict(torch.load(filename))
+            print(f"Modèle chargé depuis le fichier {filename}.")
+        except FileNotFoundError:
+            print(f"Fichier {filename} introuvable. Entraînement depuis zéro.")
+
+
+
     optimizer = optim.Adam(q_network.parameters(), lr=alpha)
     loss_fn = nn.MSELoss()
 
@@ -167,23 +183,42 @@ def train_rl_vs_minimax(episodes=500, alpha=0.1, gamma=0.99, epsilon_start=1.0, 
         state = preprocess_grid(jeu.obtenir_etat_grille())
         state = torch.tensor(state, dtype=torch.float32)
 
-        joueur_rl = jeu.joueur_humain
-        joueur_minimax = jeu.joueur_ordi
+        if episode % 2 == 0:
+            joueur_rl = jeu.joueur_humain
+            joueur_minimax = jeu.joueur_ordi
+        else:
+            joueur_rl = jeu.joueur_ordi
+            joueur_minimax = jeu.joueur_humain
+
         done = False
         action_history = []
         total_reward = 0
 
         while not done:
             valid_actions = jeu.obtenir_coups_valides()
-            if np.random.rand() < epsilon:
-                # Exploration avec une meilleure diversification
-                action_weights = [1.0 / (1 + action_history.count(a)) for a in valid_actions]
-                action_weights = np.array(action_weights) / sum(action_weights)
-                action = np.random.choice(valid_actions, p=action_weights)
+
+
+            # Détecter les menaces immédiates
+            menaces = detecter_menace(jeu, joueur_minimax)
+
+            # Si des menaces potentielles existent
+            menaces_potentielles = detecter_menaces_potentielles(jeu, joueur_minimax)
+
+            # Prioriser les menaces immédiates
+            if menaces:
+                action = np.random.choice([m for m in menaces if m in valid_actions])
+            elif menaces_potentielles:  # Ensuite, traiter les menaces anticipées
+                action = np.random.choice([m for m in menaces_potentielles if m in valid_actions])
             else:
-                q_values = q_network(state)
-                valid_q_values = torch.tensor([q_values[a].item() for a in valid_actions])
-                action = valid_actions[torch.argmax(valid_q_values).item()]
+                if np.random.rand() < epsilon:  # Exploration
+                    action_weights = [1.0 / (1 + action_history.count(a)) for a in valid_actions]
+                    action_weights = np.array(action_weights) / sum(action_weights)
+                    action = np.random.choice(valid_actions, p=action_weights)
+                else:  # Exploitation
+                    q_values = q_network(state)
+                    valid_q_values = torch.tensor([q_values[a].item() for a in valid_actions])
+                    action = valid_actions[torch.argmax(valid_q_values).item()]
+
 
             result = jeu.jouer_automatique(action)
             action_history.append(action)
@@ -232,6 +267,14 @@ def train_rl_vs_minimax(episodes=500, alpha=0.1, gamma=0.99, epsilon_start=1.0, 
     plt.title('Progression de l\'IA RL dans le jeu Puissance 4')
     plt.legend()
     plt.show()
+
+
+     # Sauvegarder le modèle si l'utilisateur le souhaite
+    save = input("Sauvegarder le modèle ? (Y/n): ").strip().upper()
+    if save == "Y":
+        filename = input("Nom du fichier pour sauvegarder le modèle : ").strip()
+        torch.save(q_network.state_dict(), filename)
+        print(f"Modèle sauvegardé sous le nom {filename}.")
 
 
 
