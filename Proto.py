@@ -5,6 +5,7 @@ import random
 import matplotlib.pyplot as plt
 
 
+
 class Puissance4:
     def __init__(self, grid=None, player=None):
         self.lignes = 6
@@ -32,24 +33,68 @@ class Puissance4:
         if not player is None:
             self.joueur_actuel = player
 
+
+
     def tour_ia_rl(self, ia_rl_action):
+        from Try1 import detecter_menace, detecter_menaces_potentielles  # 🔥 Importation locale pour éviter l'importation circulaire
+
         coups_valides = self.obtenir_coups_valides()
 
-        if ia_rl_action in coups_valides:
-            if self.jouer_coup(ia_rl_action, self.joueur_humain):
-                print(f"L'IA RL joue dans la colonne {ia_rl_action}.")
-                return True
-            else:
-                print(f"Coup invalide de l'IA RL : {ia_rl_action}.")
-                return False
+        # 🔍 Vérification des menaces immédiates avant de jouer
+        menaces = detecter_menace(self, self.joueur_ordi)
+        if menaces:
+            ia_rl_action = menaces[0]
+            print(f"🛑 IA RL bloque la menace en colonne {ia_rl_action} !")
         else:
-            ia_rl_action = random.choice(coups_valides)
-            if self.jouer_coup(ia_rl_action, self.joueur_humain):
-                print(f"L'IA RL joue dans la colonne {ia_rl_action} (choisi aléatoirement).")
-                return True
+            # 🏆 Vérification si l'IA RL peut gagner immédiatement
+            for col in coups_valides:
+                self.simuler_coup(col, self.joueur_humain)
+                if self.est_gagnant(self.joueur_humain):
+                    print(f"🏆 IA RL joue dans la colonne {col} pour gagner immédiatement !")
+                    ia_rl_action = col
+                    self.annuler_coup(col)
+                    break
+                self.annuler_coup(col)
+
+        # 🚨 Vérification si la colonne est pleine AVANT de jouer
+        if ia_rl_action not in coups_valides:
+            print(f"⚠️ La colonne {ia_rl_action} est pleine, l'IA RL doit choisir un autre coup.")
+
+            # 1️⃣ Anticiper une menace potentielle
+            menaces_potentielles = detecter_menaces_potentielles(self, self.joueur_ordi)
+            if menaces_potentielles:
+                ia_rl_action = menaces_potentielles[0]
+                print(f"⚠️ IA RL anticipe une menace en colonne {ia_rl_action}.")
+
+            # 2️⃣ Jouer au centre si possible (colonne 3 sur un plateau 7x6)
+            elif 3 in coups_valides:
+                ia_rl_action = 3
+                print(f"🔷 IA RL choisit la colonne centrale {ia_rl_action}.")
+
+            # 3️⃣ Choisir la colonne avec le meilleur potentiel
             else:
-                print(f"Coup invalide de l'IA RL : {ia_rl_action}.")
-                return False
+                scores = {col: self.evaluer_position_après_coup(col, self.joueur_humain) for col in coups_valides}
+                ia_rl_action = max(scores, key=scores.get)  # Prendre la colonne avec le meilleur score
+                print(f"🔍 IA RL choisit la colonne {ia_rl_action} avec le meilleur potentiel ({scores[ia_rl_action]} points).")
+
+        # 📌 Jouer le coup
+        if self.jouer_coup(ia_rl_action, self.joueur_humain):
+            print(f"✅ L'IA RL joue dans la colonne {ia_rl_action}.")
+            return True
+        else:
+            print(f"❌ Coup invalide de l'IA RL : {ia_rl_action}.")
+            return False
+
+
+    def evaluer_position_après_coup(self, colonne, joueur):
+        """ Simule un coup dans une colonne et évalue la position. """
+        self.simuler_coup(colonne, joueur)
+        score = self.evaluer_position(joueur)
+        self.annuler_coup(colonne)
+        return score
+
+
+
 
 
     def obtenir_etat_grille(self):
@@ -184,9 +229,16 @@ class Puissance4:
             return meilleure_colonne, valeur_min
 
     def tour_ordinateur(self):
-        colonne, _ = self.minimax(2, -math.inf, math.inf, True)
+        if random.random() < 0.2:  # 20% de chance que Minimax joue un coup aléatoire au début
+            colonne = random.choice(self.obtenir_coups_valides())
+            print(f"🎲 Minimax joue aléatoirement dans la colonne {colonne}")
+        else:
+            colonne, _ = self.minimax(2, -math.inf, math.inf, True)
+
         self.jouer_coup(colonne, self.joueur_ordi)
         print(f"L'ordinateur joue dans la colonne {colonne}.")
+        return colonne  # 🔹 Ajouté pour permettre la validation du coup
+
 
     def afficher_graphique(self):
         pygame.quit()
@@ -200,11 +252,35 @@ class Puissance4:
         plt.show()
 
     def jouer_automatique(self, ia_rl_action):
+        # 🔄 Définir qui commence
+        joueur_initial = self.joueur_actuel if random.random() < 0.5 else (self.joueur_ordi if self.joueur_actuel == self.joueur_humain else self.joueur_humain)
+        self.joueur_actuel = joueur_initial
+        print(f"🚀 Joueur qui commence cette partie : {'IA RL' if self.joueur_actuel == self.joueur_humain else 'Minimax'}")
+
+        tour_valide = False  # Pour s'assurer que chaque joueur joue un coup valide
+
+        while not tour_valide:  # Assure que l'IA RL joue bien un coup valide avant de passer à Minimax
+            valid = self.tour_ia_rl(ia_rl_action)
+            if valid:
+                tour_valide = True
+            else:
+                print(f"⚠️ IA RL a tenté un coup invalide ({ia_rl_action}), elle doit rejouer !")
+
+
         while True:
+
             self.afficher_grille()
+            pygame.time.wait(500)  # 🛑 Ajout du délai pour éviter que les parties se déroulent trop vite
 
             if self.joueur_actuel == self.joueur_ordi:
-                self.tour_ordinateur()
+                tour_valide = False
+                while not tour_valide:
+                    colonne_choisie = self.tour_ordinateur()
+                    if colonne_choisie is not None:  # Vérifie que le coup est valide
+                        tour_valide = True
+                    else:
+                        print("⚠️ Minimax a tenté un coup invalide, il doit rejouer !")
+
                 if self.est_gagnant(self.joueur_ordi):
                     self.afficher_grille()
                     print("Minimax gagne!")
@@ -213,36 +289,48 @@ class Puissance4:
                 self.joueur_actuel = self.joueur_humain
 
             elif self.joueur_actuel == self.joueur_humain:
-                valid = self.tour_ia_rl(ia_rl_action)
-                if not valid:
-                    print(f"Action invalide de l'IA RL: {ia_rl_action}.")
-                    return "Invalid"
+                tour_valide = False
+                while not tour_valide:  # Assure que l'IA RL joue bien un coup valide avant de passer à Minimax
+                    valid = self.tour_ia_rl(ia_rl_action)
+                    if valid:
+                        tour_valide = True
+                    else:
+                        print(f"⚠️ IA RL a tenté un coup invalide ({ia_rl_action}), elle doit rejouer !")
+
                 if self.est_gagnant(self.joueur_humain):
                     self.afficher_grille()
                     print("IA RL gagne!")
                     pygame.time.wait(2000)
                     return "RL"
+
+                # ✅ Assurer que le tour passe bien à Minimax
+                print("🔄 Changement de tour : c'est maintenant à Minimax de jouer.")
                 self.joueur_actuel = self.joueur_ordi
+
 
             if self.est_plein():
                 self.afficher_grille()
                 print("Match nul!")
                 pygame.time.wait(2000)
                 return "Draw"
+
             
     def simuler_coup(self, colonne, joueur):
-        """Joue temporairement un coup dans la colonne pour simuler le résultat."""
-        for ligne in reversed(range(self.lignes)):
-            if self.grille[ligne][colonne] == 0:
-                self.grille[ligne][colonne] = joueur
-                break
+            """Joue temporairement un coup dans la colonne pour simuler le résultat."""
+            if self.grille[0][colonne] != 0:  # Vérifie si la colonne est pleine
+                return
+
+            for ligne in reversed(range(self.lignes)):
+                if self.grille[ligne][colonne] == 0:
+                    self.grille[ligne][colonne] = joueur
+                    break
+
 
     def annuler_coup(self, colonne):
-        """Annule le dernier coup joué dans une colonne."""
-        for ligne in range(self.lignes):
-            if self.grille[ligne][colonne] != 0:
-                self.grille[ligne][colonne] = 0
-                break
+            """Annule le dernier coup joué dans une colonne, si possible."""
+            for ligne in range(self.lignes):
+                if self.grille[ligne][colonne] != 0:
+                    self.grille[ligne][colonne] = 0
+                    break
+
             
-
-
