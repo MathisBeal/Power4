@@ -233,7 +233,7 @@ class Puissance4:
             colonne = random.choice(self.obtenir_coups_valides())
             print(f"🎲 Minimax joue aléatoirement dans la colonne {colonne}")
         else:
-            colonne, _ = self.minimax(2, -math.inf, math.inf, True)
+            colonne, _ = self.minimax(4, -math.inf, math.inf, True)
 
         self.jouer_coup(colonne, self.joueur_ordi)
         print(f"L'ordinateur joue dans la colonne {colonne}.")
